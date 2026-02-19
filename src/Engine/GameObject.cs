@@ -117,16 +117,17 @@ public class GameObject : ITransformNode
     /// <summary>
     /// Компонент собственной отрисовки, связанный с объектом.
     /// </summary>
-    public IDrawableComponent CustomDraw
+    public IDrawableComponent DrawComponent
     {
-        get => IsDestroyed ? null : _customDraw;
+        get => IsDestroyed ? null : _drawComponent;
         set
         {
             if (IsDestroyed) { return; }
-            _customDraw = value;
+            _drawComponent = value;
         }
     }
-    private IDrawableComponent _customDraw;
+    private IDrawableComponent _drawComponent;
+    private bool _isBasicDraw = true;
 
     /// <summary>
     /// Компонент коллизии, связанный с объектом.
@@ -167,6 +168,9 @@ public class GameObject : ITransformNode
             Transform.Visible = visible;
 
             _gameObjects.Add(_objectId, this);
+            
+            AddComponent<BasicDraw>();
+            _isBasicDraw = true;
         }
         else
         {
@@ -195,6 +199,9 @@ public class GameObject : ITransformNode
             Transform.Visible = visible;
 
             _gameObjects.Add(_objectId, this);
+
+            AddComponent<BasicDraw>();
+            _isBasicDraw = true;
         }
         else
         {
@@ -226,9 +233,10 @@ public class GameObject : ITransformNode
 
         if (component is IDrawableComponent drawableComponent)
         {
-            if (CustomDraw == null)
+            if (DrawComponent == null || _isBasicDraw)
             {
-                CustomDraw = drawableComponent;
+                DrawComponent = drawableComponent;
+                _isBasicDraw = false;
             }
             else
             {
@@ -307,26 +315,14 @@ public class GameObject : ITransformNode
         .Where(r => r.Transform.Visible && Camera.IsPositionVisible(r.Transform.Position))
         .OrderBy(e => -e.Transform.Position.Y + e.TextureRectangle.Height / 16)
         .ToArray();
+
         foreach (var gameObject in sortedObjects)
         {
-            if (gameObject.CustomDraw != null)
+            if (gameObject.DrawComponent != null)
             {
-                gameObject.CustomDraw.Draw(spriteBatch, gameTime);
+                gameObject.DrawComponent.Draw(spriteBatch, gameTime);
                 continue;
             }
-
-            spriteBatch.Draw
-            (
-                gameObject.Texture,
-                Camera.WorldToScreen(gameObject.Transform.Position),
-                gameObject.TextureRectangle,
-                gameObject.Color,
-                0f,
-                Vector2.Zero,
-                gameObject.Transform.Size,
-                gameObject.TextureFlip,
-                0f
-            );
         }
     }
 

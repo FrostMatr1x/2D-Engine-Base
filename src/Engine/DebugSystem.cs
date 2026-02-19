@@ -87,7 +87,7 @@ public static class Debug
         {
             Console.WriteLine(" ");
             LastLog = text;
-            LogCount = 0;
+            LogCount = 1;
             return text;
         }
     }
