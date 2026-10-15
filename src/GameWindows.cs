@@ -10,11 +10,15 @@ public class EngineWindow
 {
     private IWindow _window;
 
-    public EngineWindow(string name)
+    public EngineWindow(string name) : this(name, 800, 600)
+    {
+    }
+
+    public EngineWindow(string name, int width, int height)
     {
         WindowOptions options = WindowOptions.DefaultVulkan with
         {
-            Size = new Vector2D<int>(800, 600),
+            Size = new Vector2D<int>(width, height),
             Title = name,
             VSync = false
         };
@@ -54,6 +58,16 @@ public class EngineWindow
     public void Close()
     {
         _window.Close();
+    }
+
+    public void SetSize(int width, int height)
+    {
+        _window.Size = new Vector2D<int>(width, height);
+    }
+
+    public void SetFullscreen(bool fullscreen)
+    {
+        _window.WindowState = fullscreen ? WindowState.Fullscreen : WindowState.Normal;
     }
 
     public unsafe SurfaceKHR CreateSurface(Instance instance)

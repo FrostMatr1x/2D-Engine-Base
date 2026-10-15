@@ -21,6 +21,8 @@ public sealed class GraphicsDevice
 
     public int FramesInFlight => _renderer.FramesInFlight;
 
+    public SpriteBatch ActiveSpriteBatch { get; internal set; }
+
     public Viewport Viewport => new Viewport(0, 0, _renderer.BackbufferWidth, _renderer.BackbufferHeight);
 
     public Color ClearColor { get; set; } = new Color(13, 15, 23, 255);

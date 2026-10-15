@@ -275,7 +275,7 @@ public sealed unsafe class Renderer2D : IDisposable
 
             var spritePushConstants = new PushConstants
             {
-                Projection = camera.GetViewProjection(_swapchain.Extent.Width, _swapchain.Extent.Height) * sprites.TransformMatrix
+                Projection = camera.GetViewProjection(_swapchain.Extent.Width, _swapchain.Extent.Height)
             };
             _context.Vk.CmdPushConstants(commandBuffer, _spritePipeline.Layout, ShaderStageFlags.VertexBit, 0, (uint)sizeof(PushConstants), &spritePushConstants);
 

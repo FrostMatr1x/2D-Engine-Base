@@ -41,12 +41,10 @@ public static class SpriteBatcher
     public static void Build(
         SpriteSortMode sortMode,
         List<SpriteDrawCall> draws,
+        Matrix transform,
         List<SpriteVertex> vertices,
         List<SpriteSubBatch> subBatches)
     {
-        vertices.Clear();
-        subBatches.Clear();
-
         if (sortMode == SpriteSortMode.Immediate || sortMode == SpriteSortMode.Texture)
         {
             throw new NotSupportedException($"SpriteSortMode.{sortMode} is not implemented.");
@@ -60,7 +58,7 @@ public static class SpriteBatcher
 
         Texture2D currentTexture = null;
         SamplerState currentSampler = null;
-        uint batchStart = 0;
+        uint batchStart = (uint)vertices.Count;
 
         foreach (SpriteDrawCall draw in ordered)
         {
@@ -87,7 +85,7 @@ public static class SpriteBatcher
                 batchStart = (uint)vertices.Count;
             }
 
-            AppendQuad(vertices, draw);
+            AppendQuad(vertices, draw, transform);
         }
 
         if (currentTexture != null)
@@ -102,7 +100,7 @@ public static class SpriteBatcher
         }
     }
 
-    private static void AppendQuad(List<SpriteVertex> vertices, SpriteDrawCall draw)
+    private static void AppendQuad(List<SpriteVertex> vertices, SpriteDrawCall draw, Matrix transform)
     {
         Texture2D texture = draw.Texture;
         int texWidth = texture.Width;
@@ -140,7 +138,12 @@ public static class SpriteBatcher
             float rotatedX = offsetX * cos - offsetY * sin;
             float rotatedY = offsetX * sin + offsetY * cos;
 
-            var position = new Vector2(draw.Position.X + rotatedX, draw.Position.Y + rotatedY);
+            float worldX = draw.Position.X + rotatedX;
+            float worldY = draw.Position.Y + rotatedY;
+
+            var position = new Vector2(
+                worldX * transform.M11 + worldY * transform.M21 + transform.M41,
+                worldX * transform.M12 + worldY * transform.M22 + transform.M42);
 
             float u = flipH ? u0 + u1 - uvs[i] : uvs[i];
             float v = flipV ? v0 + v1 - uvV[i] : uvV[i];

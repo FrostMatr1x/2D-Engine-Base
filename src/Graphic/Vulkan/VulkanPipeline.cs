@@ -100,7 +100,7 @@ public sealed unsafe class VulkanPipeline : IDisposable
                     DstColorBlendFactor = BlendFactor.OneMinusSrcAlpha,
                     ColorBlendOp = BlendOp.Add,
                     SrcAlphaBlendFactor = BlendFactor.One,
-                    DstAlphaBlendFactor = BlendFactor.Zero,
+                    DstAlphaBlendFactor = BlendFactor.OneMinusSrcAlpha,
                     AlphaBlendOp = BlendOp.Add,
                     ColorWriteMask = ColorComponentFlags.RBit | ColorComponentFlags.GBit | ColorComponentFlags.BBit | ColorComponentFlags.ABit
                 };

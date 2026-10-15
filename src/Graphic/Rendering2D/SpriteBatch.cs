@@ -13,15 +13,15 @@ public sealed unsafe class SpriteBatch : IDisposable
     private readonly VulkanContext _context;
     private readonly VulkanBuffer[] _vertexBuffers;
     private readonly List<SpriteDrawCall> _draws = new List<SpriteDrawCall>();
-    private readonly List<SpriteVertex> _vertexList = new List<SpriteVertex>();
+    private readonly List<SpriteVertex> _vertices = new List<SpriteVertex>();
     private readonly List<SpriteSubBatch> _subBatches = new List<SpriteSubBatch>();
 
-    private SpriteVertex[] _vertices = Array.Empty<SpriteVertex>();
-    private int _vertexCount;
+    private SpriteVertex[] _vertexArray = Array.Empty<SpriteVertex>();
     private SpriteSortMode _sortMode;
     private SamplerState _sampler;
-    private Mat4? _transform;
+    private Matrix _transformMatrix = Matrix.Identity;
     private bool _begun;
+    private bool _pendingReset = true;
     private bool _disposed;
 
     public SpriteBatch(VulkanContext context, int framesInFlight)
@@ -32,13 +32,14 @@ public sealed unsafe class SpriteBatch : IDisposable
         {
             _vertexBuffers[i] = VulkanBuffer.CreateHostVisible(
                 context,
-                (ulong)(InitialVertexCapacity * sizeof(SpriteVertex)),
+                (ulong)(InitialVertexCapacity * System.Runtime.CompilerServices.Unsafe.SizeOf<SpriteVertex>()),
                 BufferUsageFlags.VertexBufferBit);
         }
     }
 
     public SpriteBatch(GraphicsDevice device) : this(device.Context, device.FramesInFlight)
     {
+        device.ActiveSpriteBatch = this;
     }
 
     public bool HasPending => _subBatches.Count > 0;
@@ -47,13 +48,18 @@ public sealed unsafe class SpriteBatch : IDisposable
 
     public VulkanBuffer ActiveBuffer { get; private set; }
 
-    public Mat4 TransformMatrix => _transform ?? Mat4.Identity;
-
     public void Begin(SpriteSortMode sortMode = SpriteSortMode.Deferred, SamplerState samplerState = null, Matrix? transformMatrix = null)
     {
+        if (_pendingReset)
+        {
+            _vertices.Clear();
+            _subBatches.Clear();
+            _pendingReset = false;
+        }
+
         _sortMode = sortMode;
         _sampler = samplerState ?? SamplerState.PointClamp;
-        _transform = transformMatrix?.ToMat4();
+        _transformMatrix = transformMatrix ?? Matrix.Identity;
         _draws.Clear();
         _begun = true;
     }
@@ -66,10 +72,7 @@ public sealed unsafe class SpriteBatch : IDisposable
         }
         _begun = false;
 
-        SpriteBatcher.Build(_sortMode, _draws, _vertexList, _subBatches);
-        _vertexCount = _vertexList.Count;
-        EnsureVertexArray(_vertexCount);
-        _vertexList.CopyTo(_vertices, 0);
+        SpriteBatcher.Build(_sortMode, _draws, _transformMatrix, _vertices, _subBatches);
         _draws.Clear();
     }
 
@@ -245,27 +248,32 @@ public sealed unsafe class SpriteBatch : IDisposable
     public void Prepare(int frameIndex)
     {
         ActiveBuffer = null;
-        if (_subBatches.Count == 0 || _vertexCount == 0)
+        int count = _vertices.Count;
+        if (_subBatches.Count == 0 || count == 0)
         {
+            _pendingReset = true;
             return;
         }
 
-        EnsureCapacity(frameIndex, _vertexCount);
-        _vertexBuffers[frameIndex].SetData(_vertices.AsSpan(0, _vertexCount));
+        EnsureVertexArray(count);
+        _vertices.CopyTo(_vertexArray, 0);
+        EnsureCapacity(frameIndex, count);
+        _vertexBuffers[frameIndex].SetData(_vertexArray.AsSpan(0, count));
         ActiveBuffer = _vertexBuffers[frameIndex];
+        _pendingReset = true;
     }
 
     private void EnsureVertexArray(int count)
     {
-        if (_vertices.Length < count)
+        if (_vertexArray.Length < count)
         {
-            _vertices = new SpriteVertex[count];
+            _vertexArray = new SpriteVertex[count];
         }
     }
 
     private void EnsureCapacity(int frameIndex, int requiredVertices)
     {
-        ulong requiredSize = (ulong)((long)requiredVertices * sizeof(SpriteVertex));
+        ulong requiredSize = (ulong)((long)requiredVertices * System.Runtime.CompilerServices.Unsafe.SizeOf<SpriteVertex>());
         if (_vertexBuffers[frameIndex].Size >= requiredSize)
         {
             return;
@@ -276,7 +284,7 @@ public sealed unsafe class SpriteBatch : IDisposable
         _context.Vk.DeviceWaitIdle(_context.Device);
 
         _vertexBuffers[frameIndex].Dispose();
-        ulong minimum = (ulong)InitialVertexCapacity * (ulong)sizeof(SpriteVertex);
+        ulong minimum = (ulong)InitialVertexCapacity * (ulong)System.Runtime.CompilerServices.Unsafe.SizeOf<SpriteVertex>();
         ulong capacity = Math.Max(requiredSize, Math.Max(currentCapacity * 2, minimum));
 
         _vertexBuffers[frameIndex] = VulkanBuffer.CreateHostVisible(_context, capacity, BufferUsageFlags.VertexBufferBit);

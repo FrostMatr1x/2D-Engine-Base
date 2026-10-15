@@ -19,22 +19,36 @@ public sealed class ContentManager : IDisposable
 
     private readonly Dictionary<(Type, string), object> _cache = new Dictionary<(Type, string), object>();
     private readonly Dictionary<Type, Func<ContentManager, string, object>> _loaders = new Dictionary<Type, Func<ContentManager, string, object>>();
-    private readonly string _root;
+    private string _root;
+
     private bool _disposed;
 
-    public ContentManager(GraphicsDevice graphicsDevice, string rootDirectory = "Content")
+    public ContentManager(string rootDirectory = "Content")
     {
-        GraphicsDevice = graphicsDevice ?? throw new ArgumentNullException(nameof(graphicsDevice));
         RootDirectory = string.IsNullOrWhiteSpace(rootDirectory) ? "Content" : rootDirectory;
-        _root = ResolveRoot(RootDirectory);
 
         RegisterLoader(typeof(Texture2D), LoadTexture);
         RegisterLoader(typeof(SpriteFont), LoadSpriteFont);
     }
 
-    public GraphicsDevice GraphicsDevice { get; }
+    public ContentManager(GraphicsDevice graphicsDevice, string rootDirectory = "Content")
+        : this(rootDirectory)
+    {
+        AttachDevice(graphicsDevice);
+    }
 
-    public string RootDirectory { get; }
+    public GraphicsDevice GraphicsDevice { get; private set; }
+
+    public void AttachDevice(GraphicsDevice graphicsDevice)
+    {
+        GraphicsDevice = graphicsDevice ?? throw new ArgumentNullException(nameof(graphicsDevice));
+    }
+
+    public string RootDirectory
+    {
+        get => _root;
+        set => _root = ResolveRoot(string.IsNullOrWhiteSpace(value) ? "Content" : value);
+    }
 
     public string ContentRoot => _root;
 

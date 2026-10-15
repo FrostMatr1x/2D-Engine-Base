@@ -1,4 +1,6 @@
 using System;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Engine.Graphic.Vulkan;
 using Silk.NET.Vulkan;
 using SixLabors.ImageSharp;
@@ -104,6 +106,97 @@ public sealed class Texture2D : IDisposable
         }
 
         Upload(pixels);
+    }
+
+    public void SetData<T>(T[] data) where T : unmanaged
+    {
+        if (data == null)
+        {
+            throw new ArgumentNullException(nameof(data));
+        }
+
+        int byteCount = Width * Height * 4;
+        if (data.Length * Unsafe.SizeOf<T>() != byteCount)
+        {
+            throw new ArgumentException(
+                $"Data length {data.Length} * {Unsafe.SizeOf<T>()} does not match texture byte count {byteCount}.",
+                nameof(data));
+        }
+
+        Upload(MemoryMarshal.AsBytes(data.AsSpan()).ToArray());
+    }
+
+    public void GetData<T>(T[] data) where T : unmanaged
+    {
+        if (data == null)
+        {
+            throw new ArgumentNullException(nameof(data));
+        }
+
+        int byteCount = Width * Height * 4;
+        if (data.Length * Unsafe.SizeOf<T>() != byteCount)
+        {
+            throw new ArgumentException(
+                $"Data length {data.Length} * {Unsafe.SizeOf<T>()} does not match texture byte count {byteCount}.",
+                nameof(data));
+        }
+
+        Readback(data);
+    }
+
+    private unsafe void Readback<T>(T[] data) where T : unmanaged
+    {
+        ulong bufferSize = (ulong)(Width * Height * 4);
+        using VulkanBuffer staging = VulkanBuffer.CreateHostVisible(
+            _context,
+            bufferSize,
+            BufferUsageFlags.TransferDstBit);
+
+        VulkanCommands.ImmediateSubmit(_context, commandBuffer =>
+        {
+            _image.TransitionLayout(
+                commandBuffer,
+                ImageLayout.ShaderReadOnlyOptimal,
+                ImageLayout.TransferSrcOptimal,
+                PipelineStageFlags.FragmentShaderBit,
+                PipelineStageFlags.TransferBit);
+
+            var region = new BufferImageCopy
+            {
+                BufferOffset = 0,
+                BufferRowLength = 0,
+                BufferImageHeight = 0,
+                ImageSubresource = new ImageSubresourceLayers
+                {
+                    AspectMask = ImageAspectFlags.ColorBit,
+                    MipLevel = 0,
+                    BaseArrayLayer = 0,
+                    LayerCount = 1
+                },
+                ImageOffset = new Offset3D { X = 0, Y = 0, Z = 0 },
+                ImageExtent = new Extent3D { Width = (uint)Width, Height = (uint)Height, Depth = 1 }
+            };
+
+            _context.Vk.CmdCopyImageToBuffer(
+                commandBuffer,
+                _image.Handle,
+                ImageLayout.TransferSrcOptimal,
+                staging.Handle,
+                1,
+                &region);
+
+            _image.TransitionLayout(
+                commandBuffer,
+                ImageLayout.TransferSrcOptimal,
+                ImageLayout.ShaderReadOnlyOptimal,
+                PipelineStageFlags.TransferBit,
+                PipelineStageFlags.FragmentShaderBit);
+        });
+
+        fixed (T* destination = data)
+        {
+            System.Buffer.MemoryCopy(staging.Mapped, destination, bufferSize, bufferSize);
+        }
     }
 
     private unsafe void Create(byte[] pixels)

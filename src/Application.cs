@@ -5,6 +5,7 @@ using Engine.Content;
 using Engine.Graphic;
 using Engine.Graphic.Vulkan;
 using Engine.Input;
+using EngineInputHelper = Engine.Input.InputHelper;
 using Engine.Sim;
 
 namespace Engine;
@@ -53,6 +54,12 @@ public sealed class Application
 
     public static void Main(string[] args)
     {
+        if (Environment.GetEnvironmentVariable("ENGINE_GAMEHOST_SELFTEST") == "1")
+        {
+            GameHost.Run(new GameHostSelfTestGame());
+            return;
+        }
+
         var window = new EngineWindow("2D Engine — Vulkan");
         var application = new Application(window);
         application.Run();
@@ -103,8 +110,13 @@ public sealed class Application
             RunContentSelfTest();
         }
 
-        InputHelper.InputKeyboard.AddKeyEvent(Keys.Escape, _ => _window.Close(), "exit", false);
-        InputHelper.InputKeyboard.AddKeyEvent(Keys.Space, _ => _clampFrames++, "clamp-space", true, ClampKey: true);
+        if (Environment.GetEnvironmentVariable("ENGINE_TEXTURE_SELFTEST") == "1")
+        {
+            RunTextureSelfTest();
+        }
+
+        EngineInputHelper.InputKeyboard.AddKeyEvent(Keys.Escape, _ => _window.Close(), "exit", false);
+        EngineInputHelper.InputKeyboard.AddKeyEvent(Keys.Space, _ => _clampFrames++, "clamp-space", true, ClampKey: true);
 
         Console.WriteLine($"GPU: {_context.SelectedDevice.DeviceName}; validation: {(_context.ValidationEnabled ? "on" : "off")}");
         Console.WriteLine($"[content] font '{_font.Atlas.Width}x{_font.Atlas.Height}', glyphs={_font.Glyphs.Count}, texture {_testTexture.Width}x{_testTexture.Height}");
@@ -246,45 +258,110 @@ public sealed class Application
         Console.WriteLine($"[content selftest] missing message: {missingMessage}");
     }
 
+    private void RunTextureSelfTest()
+    {
+        var source = new Color[16];
+        for (int i = 0; i < source.Length; i++)
+        {
+            source[i] = new Color((byte)(i * 16), (byte)(255 - i * 16), (byte)(i * 7), i == 0 ? (byte)0 : (byte)255);
+        }
+
+        var texture = new Texture2D(_graphicsDevice, 4, 4);
+        texture.SetData(source);
+        var readBack = new Color[16];
+        texture.GetData(readBack);
+        texture.Dispose();
+
+        bool roundTrip = true;
+        for (int i = 0; i < source.Length; i++)
+        {
+            if (source[i] != readBack[i])
+            {
+                roundTrip = false;
+                break;
+            }
+        }
+
+        var tilePixels = new Color[_testTexture.Width * _testTexture.Height];
+        _testTexture.GetData(tilePixels);
+        int gpuNonEmpty = 0;
+        foreach (Color color in tilePixels)
+        {
+            if (color.A != 0)
+            {
+                gpuNonEmpty++;
+            }
+        }
+
+        int expectedNonEmpty = CountCpuNonEmpty("UICollider");
+
+        bool pass = roundTrip && gpuNonEmpty == expectedNonEmpty;
+        Console.WriteLine(
+            $"[texture selftest] roundTrip={roundTrip} gpuNonEmpty={gpuNonEmpty} cpuNonEmpty={expectedNonEmpty} -> {(pass ? "PASS" : "FAIL")}");
+    }
+
+    private int CountCpuNonEmpty(string asset)
+    {
+        string path = _content.ResolveExisting(asset, ".png", ".bmp", ".jpg", ".jpeg", ".tga", ".gif");
+        using SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgba32> image =
+            SixLabors.ImageSharp.Image.Load<SixLabors.ImageSharp.PixelFormats.Rgba32>(path);
+        int count = 0;
+        image.ProcessPixelRows(accessor =>
+        {
+            for (int y = 0; y < accessor.Height; y++)
+            {
+                Span<SixLabors.ImageSharp.PixelFormats.Rgba32> row = accessor.GetRowSpan(y);
+                for (int x = 0; x < row.Length; x++)
+                {
+                    if (row[x].A != 0)
+                    {
+                        count++;
+                    }
+                }
+            }
+        });
+        return count;
+    }
+
     private static void RunInputSelfTest()
     {
-        InputHelper.Clear();
+        EngineInputHelper.Clear();
 
         int single = 0;
         int repeat = 0;
         int held = 0;
 
-        InputHelper.InputKeyboard.AddKeyEvent(Keys.A, _ => single++, "single", false);
-        InputHelper.InputKeyboard.AddKeyEvent(Keys.C, _ => repeat++, "repeat", true);
-        InputHelper.InputKeyboard.AddKeyEvent(Keys.B, _ => held++, "clamp", true, ClampKey: true);
+        EngineInputHelper.InputKeyboard.AddKeyEvent(Keys.A, _ => single++, "single", false);
+        EngineInputHelper.InputKeyboard.AddKeyEvent(Keys.C, _ => repeat++, "repeat", true);
+        EngineInputHelper.InputKeyboard.AddKeyEvent(Keys.B, _ => held++, "clamp", true, ClampKey: true);
 
         bool aDown = false;
-        InputHelper.KeyStateProvider = key => key == Keys.A && aDown;
-        InputHelper.Update();
+        EngineInputHelper.KeyStateProvider = key => key == Keys.A && aDown;
+        EngineInputHelper.Update();
         aDown = true;
-        InputHelper.Update();
-        InputHelper.Update();
+        EngineInputHelper.Update();
+        EngineInputHelper.Update();
 
         bool cDown = false;
-        InputHelper.KeyStateProvider = key => key == Keys.C && cDown;
+        EngineInputHelper.KeyStateProvider = key => key == Keys.C && cDown;
         cDown = true;
-        InputHelper.Update();
-        InputHelper.Update();
+        EngineInputHelper.Update();
+        EngineInputHelper.Update();
         cDown = false;
-        InputHelper.Update();
+        EngineInputHelper.Update();
         cDown = true;
-        InputHelper.Update();
+        EngineInputHelper.Update();
 
         bool bDown = false;
-        InputHelper.KeyStateProvider = key => key == Keys.B && bDown;
+        EngineInputHelper.KeyStateProvider = key => key == Keys.B && bDown;
         bDown = true;
-        InputHelper.Update();
-        InputHelper.Update();
+        EngineInputHelper.Update();
+        EngineInputHelper.Update();
 
-        bool pass = single == 1 && repeat == 2 && held == 2 && InputHelper.KeyEventCount == 2;
-        Console.WriteLine($"[input selftest] single={single} repeat={repeat} held={held} events={InputHelper.KeyEventCount} -> {(pass ? "PASS" : "FAIL")}");
+        bool pass = single == 1 && repeat == 2 && held == 2 && EngineInputHelper.KeyEventCount == 2;
+        Console.WriteLine($"[input selftest] single={single} repeat={repeat} held={held} events={EngineInputHelper.KeyEventCount} -> {(pass ? "PASS" : "FAIL")}");
 
-        InputHelper.Clear();
+        EngineInputHelper.Clear();
     }
 
     private void OnClosing()

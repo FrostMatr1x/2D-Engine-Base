@@ -76,10 +76,24 @@ public struct Color : IEquatable<Color>
         A = ToByte(a);
     }
 
+    public Color(Color color, float alpha)
+    {
+        R = color.R;
+        G = color.G;
+        B = color.B;
+        A = ToByte(alpha);
+    }
+
     public static Color White => new Color(255, 255, 255, 255);
     public static Color Black => new Color(0, 0, 0, 255);
     public static Color Transparent => new Color(0, 0, 0, 0);
     public static Color CornflowerBlue => new Color(100, 149, 237, 255);
+    public static Color Red => new Color(255, 0, 0, 255);
+    public static Color Green => new Color(0, 128, 0, 255);
+    public static Color Blue => new Color(0, 0, 255, 255);
+    public static Color Yellow => new Color(255, 255, 0, 255);
+    public static Color Gray => new Color(128, 128, 128, 255);
+    public static Color Orange => new Color(255, 165, 0, 255);
 
     public uint PackedValue => (uint)(R | (G << 8) | (B << 16) | (A << 24));
 
