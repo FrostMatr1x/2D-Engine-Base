@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Drawing;
+using Engine.Graphic;
 using System.Linq;
-using _2D_Engine_Base;
-using Blockhand;
-using Microsoft.Xna.Framework;
+using System.Numerics;
 
 namespace Engine;
 
@@ -166,8 +164,10 @@ public class Collider : IComponent
     /// <param name="layers">Массив слоёв, с которыми будет проверяться столкновение.</param>
     public void InitCollider(Vector2 ColliderSize, CollisionLayer[] layers)
     {
-        ColliderInfo = new ColliderInfo(GameObject.Transform);
-        ColliderInfo.Collider = new RectangleF(0, 0, ColliderSize.X, ColliderSize.Y);
+        ColliderInfo = new ColliderInfo(GameObject.Transform)
+        {
+            Collider = new RectangleF(0, 0, ColliderSize.X, ColliderSize.Y)
+        };
         if (layers != null) 
         {
             CollisionLayers = layers.ToHashSet();
@@ -182,8 +182,10 @@ public class Collider : IComponent
     /// <param name="layer">Слой столкновения, с которым будет проверяться пересечение.</param>
     public void InitCollider(Vector2 ColliderSize, CollisionLayer layer)
     {
-        ColliderInfo = new ColliderInfo(GameObject.Transform);
-        ColliderInfo.Collider = new RectangleF(0, 0, ColliderSize.X, ColliderSize.Y);
+        ColliderInfo = new ColliderInfo(GameObject.Transform)
+        {
+            Collider = new RectangleF(0, 0, ColliderSize.X, ColliderSize.Y)
+        };
         CollisionLayer[] collisionLayers = { layer };
         CollisionLayers = collisionLayers.ToHashSet();
     }

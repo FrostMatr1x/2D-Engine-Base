@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using Engine;
 using Engine.Sprite;
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
+using System.Numerics;
+using Engine.Graphic;
 
 namespace Blockhand;
 public abstract class AnimationTriggerBase
@@ -184,6 +184,61 @@ public class EntitiesAnimations : IComponent, IDrawableComponent
     public GameObject GameObject { get; set; }
 
     /// <summary>
+    /// Текстура, отображаемая для объекта.
+    /// </summary>
+    public Texture2D Texture
+    {
+        get => GameObject.IsDestroyed ? null : _texture;
+        set
+        {
+            if (GameObject.IsDestroyed) { return; }
+            _texture = value;
+        }
+    }
+    private Texture2D _texture;
+
+    /// <summary>
+    /// Прямоугольник текстуры, используемый для отрисовки.
+    /// </summary>
+    public Rectangle TextureRectangle
+    {
+        get => GameObject.IsDestroyed ? Rectangle.Empty : _rectangle;
+        set
+        {
+            if (GameObject.IsDestroyed) { return; }
+            _rectangle = value;
+        }
+    }
+    private Rectangle _rectangle;
+
+    /// <summary>
+    /// Флаг отражения текстуры по горизонтали.
+    /// </summary>
+    public SpriteEffects TextureFlip
+    {
+        get => GameObject.IsDestroyed ? SpriteEffects.None : _textureFlip;
+        set
+        {
+            if (GameObject.IsDestroyed) { return; }
+            _textureFlip = value;
+        }
+    }
+    private SpriteEffects _textureFlip;
+
+    /// <summary>
+    /// Цвет объекта (используется при отрисовке).
+    /// </summary>
+    public Color Color
+    {
+        get => GameObject.IsDestroyed ? Color.White : _color;
+        set
+        {
+            if (GameObject.IsDestroyed) { return; }
+            _color = value;
+        }
+    }
+    private Color _color;
+    /// <summary>
     /// Последняя активная анимация. Используется для сохранения первого кадра после окончания воспроизведения.
     /// </summary>
     private Animation _lastAnimation = null;
@@ -244,25 +299,25 @@ public class EntitiesAnimations : IComponent, IDrawableComponent
         {
             if (_lastAnimation != null && _lastAnimation.SaveFirstFrame)
             {
-                GameObject.Texture = _lastAnimation.AnimationSprite.SpriteList;
-                GameObject.TextureRectangle = _lastAnimation.AnimationSprite.Sprites[_lastAnimation.AnimationId, 0];
-                GameObject.TextureFlip = _lastAnimation.SpriteEffect;
+                Texture = _lastAnimation.AnimationSprite.SpriteList;
+                TextureRectangle = _lastAnimation.AnimationSprite.Sprites[_lastAnimation.AnimationId, 0];
+                TextureFlip = _lastAnimation.SpriteEffect;
                 _lastAnimation = null;
             }
 
             // Рисуем статичный спрайт
-            if (GameObject.Texture != null)
+            if (Texture != null)
             {
                 spriteBatch.Draw
                 (
-                    GameObject.Texture,
+                    Texture,
                     Camera.WorldToScreen(GameObject.Transform.Position),
-                    GameObject.TextureRectangle,
-                    GameObject.Color,
+                    TextureRectangle,
+                    Color,
                     0f,
                     Vector2.Zero,
                     GameObject.Transform.Size,
-                    GameObject.TextureFlip,
+                    TextureFlip,
                     0f
                 );
             }

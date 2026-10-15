@@ -1,6 +1,6 @@
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
+using System.Numerics;
+using Engine.Graphic;
+using Engine.Input;
 using System;
 
 namespace Engine.UI;
@@ -19,28 +19,32 @@ public class UIButton : UIRendererComponent
             }
         }
     }
+
     public override void LocalInit()
     {
-        Element.CreateGlobalComponentId(this);
+        id = Element.GetGlobalComponentId();
         if (id.HasValue)
         {
             InputHelper.InputMouse.AddButtonEvent(MouseButton.LeftButton, _ => CheckButton(), "UIButtomID: " + id, true);
         }
         else
         {
-            Console.WriteLine("Error: No UI component id");
+            Debug.Error("No UI component id");
         }
     }
+
     public override void Destroying()
     {
         if (id.HasValue)
         {
             InputHelper.InputMouse.RemoveButtonEvent(MouseButton.LeftButton, "UIButtomID: " + id);
+            Element.DestroyGlobalComponentId(id.Value);
         }
         else
         {
-            Console.WriteLine("Error: No UI component id");
+            Debug.Error("No UI component id");
         }
     }
+
     public override void Draw(SpriteBatch spriteBatch) { }
 }

@@ -1,5 +1,5 @@
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
+using System.Numerics;
+using Engine.Graphic;
 
 namespace Engine.UI;
 public class UIImage : UIRendererComponent
