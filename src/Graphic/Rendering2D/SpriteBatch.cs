@@ -37,6 +37,10 @@ public sealed unsafe class SpriteBatch : IDisposable
         }
     }
 
+    public SpriteBatch(GraphicsDevice device) : this(device.Context, device.FramesInFlight)
+    {
+    }
+
     public bool HasPending => _subBatches.Count > 0;
 
     public IReadOnlyList<SpriteSubBatch> SubBatches => _subBatches;
@@ -140,6 +144,102 @@ public sealed unsafe class SpriteBatch : IDisposable
     public void Draw(Texture2D texture, Rectangle destinationRectangle, Color color)
     {
         Draw(texture, destinationRectangle, null, color);
+    }
+
+    public void DrawString(SpriteFont spriteFont, string text, Vector2 position, Color color)
+    {
+        DrawString(spriteFont, text, position, color, 0f, Vector2.Zero, Vector2.One, SpriteEffects.None, 0f);
+    }
+
+    public void DrawString(
+        SpriteFont spriteFont,
+        string text,
+        Vector2 position,
+        Color color,
+        float rotation,
+        Vector2 origin,
+        float scale,
+        SpriteEffects effects,
+        float layerDepth)
+    {
+        DrawString(spriteFont, text, position, color, rotation, origin, new Vector2(scale, scale), effects, layerDepth);
+    }
+
+    public void DrawString(
+        SpriteFont spriteFont,
+        string text,
+        Vector2 position,
+        Color color,
+        float rotation,
+        Vector2 origin,
+        Vector2 scale,
+        SpriteEffects effects,
+        float layerDepth)
+    {
+        if (spriteFont == null)
+        {
+            throw new ArgumentNullException(nameof(spriteFont));
+        }
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        float cos = MathF.Cos(rotation);
+        float sin = MathF.Sin(rotation);
+        Vector2 pen = Vector2.Zero;
+        char? previous = null;
+
+        foreach (char character in text)
+        {
+            if (character == '\n')
+            {
+                pen.X = 0f;
+                pen.Y += spriteFont.LineHeight;
+                previous = null;
+                continue;
+            }
+
+            if (character == '\r')
+            {
+                continue;
+            }
+
+            if (previous.HasValue)
+            {
+                pen.X += spriteFont.GetKerning(previous.Value, character);
+            }
+
+            if (spriteFont.TryGetGlyph(character, out Glyph glyph) ||
+                (spriteFont.DefaultCharacter.HasValue && spriteFont.TryGetGlyph(spriteFont.DefaultCharacter.Value, out glyph)))
+            {
+                if (!glyph.IsEmpty)
+                {
+                    Vector2 glyphOffset = pen + new Vector2(glyph.XOffset, glyph.YOffset);
+                    Vector2 scaled = new Vector2(
+                        (glyphOffset.X - origin.X) * scale.X,
+                        (glyphOffset.Y - origin.Y) * scale.Y);
+                    Vector2 rotated = new Vector2(
+                        scaled.X * cos - scaled.Y * sin,
+                        scaled.X * sin + scaled.Y * cos);
+
+                    Draw(
+                        spriteFont.Atlas,
+                        position + rotated,
+                        glyph.Bounds,
+                        color,
+                        rotation,
+                        Vector2.Zero,
+                        scale,
+                        effects,
+                        layerDepth);
+                }
+
+                pen.X += glyph.XAdvance;
+            }
+
+            previous = character;
+        }
     }
 
     public void Prepare(int frameIndex)

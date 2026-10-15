@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Globalization;
 using System.Numerics;
+using Engine.Content;
 using Engine.Graphic;
 using Engine.Graphic.Vulkan;
 using Engine.Input;
 using Engine.Sim;
-using SixLabors.ImageSharp.PixelFormats;
 
 namespace Engine;
 
@@ -22,11 +22,15 @@ public sealed class Application
 
     private VulkanContext _context;
     private Renderer2D _renderer;
+    private GraphicsDevice _graphicsDevice;
+    private ContentManager _content;
     private InputController _input;
     private SpriteBatch _spriteBatch;
+    private SpriteFont _font;
     private Texture2D _pixelTexture;
     private Texture2D _testTexture;
     private Instance2D[] _renderState = Array.Empty<Instance2D>();
+    private GameTime _gameTime = new();
     private double _hudTimer;
     private double _elapsed;
     private long _clampFrames;
@@ -70,15 +74,17 @@ public sealed class Application
         _context.Init(_window);
 
         _renderer = new Renderer2D(_context, _window, InstanceCount, FramesInFlight);
+        _graphicsDevice = new GraphicsDevice(_context, _renderer);
         _input = new InputController(_window, _camera);
 
-        Texture2D.Init(_context, _renderer.Descriptors);
-        _pixelTexture = new Texture2D();
-        _testTexture = new Texture2D(CreateTestImage());
-        _spriteBatch = new SpriteBatch(_context, FramesInFlight);
+        _content = new ContentManager(_graphicsDevice);
+        _font = _content.Load<SpriteFont>("Font");
+        _testTexture = _content.Load<Texture2D>("UICollider");
 
-        Texture2D transient = new Texture2D(CreateTestImage());
-        transient.Dispose();
+        _pixelTexture = new Texture2D(_graphicsDevice, 1, 1);
+        _pixelTexture.SetData(new[] { Color.White });
+
+        _spriteBatch = new SpriteBatch(_context, FramesInFlight);
 
         _simulation.Bounds = new Vector2(2000f, 1500f);
         _simulation.Init(InstanceCount, 12345);
@@ -92,10 +98,16 @@ public sealed class Application
             RunInputSelfTest();
         }
 
+        if (Environment.GetEnvironmentVariable("ENGINE_CONTENT_SELFTEST") == "1")
+        {
+            RunContentSelfTest();
+        }
+
         InputHelper.InputKeyboard.AddKeyEvent(Keys.Escape, _ => _window.Close(), "exit", false);
         InputHelper.InputKeyboard.AddKeyEvent(Keys.Space, _ => _clampFrames++, "clamp-space", true, ClampKey: true);
 
         Console.WriteLine($"GPU: {_context.SelectedDevice.DeviceName}; validation: {(_context.ValidationEnabled ? "on" : "off")}");
+        Console.WriteLine($"[content] font '{_font.Atlas.Width}x{_font.Atlas.Height}', glyphs={_font.Glyphs.Count}, texture {_testTexture.Width}x{_testTexture.Height}");
     }
 
     private void OnFramebufferResize(Silk.NET.Maths.Vector2D<int> size)
@@ -111,8 +123,14 @@ public sealed class Application
         }
 
         _time.Update();
+        _gameTime.Update(_time);
+        Update(_gameTime);
+    }
+
+    private void Update(GameTime gameTime)
+    {
         _input.Update();
-        _fixedStep.Update(_time.DeltaTime, _simulation);
+        _fixedStep.Update((float)gameTime.ElapsedGameTime.TotalSeconds, _simulation);
     }
 
     private void OnRender(double delta)
@@ -123,9 +141,7 @@ public sealed class Application
         }
 
         _frameCount++;
-        _simulation.GetRenderState(_renderState, _fixedStep.Alpha);
-        DrawSprites();
-        _renderer.DrawFrame(_camera, _renderState, _spriteBatch);
+        Render(_gameTime);
 
         _elapsed += delta;
         if (_exitAfter > 0.0 && _elapsed >= _exitAfter)
@@ -134,10 +150,19 @@ public sealed class Application
             return;
         }
 
-        UpdateHud(delta);
+        UpdateStats(delta);
     }
 
-    private void UpdateHud(double delta)
+    private void Render(GameTime gameTime)
+    {
+        _graphicsDevice.Clear(new Color(13, 15, 23, 255));
+
+        _simulation.GetRenderState(_renderState, _fixedStep.Alpha);
+        DrawSprites(gameTime);
+        _renderer.DrawFrame(_camera, _renderState, _spriteBatch);
+    }
+
+    private void UpdateStats(double delta)
     {
         if (delta > 0.0)
         {
@@ -149,20 +174,76 @@ public sealed class Application
         if (_hudTimer >= 0.25)
         {
             _hudTimer = 0.0;
-            _window.Title = $"2D Engine | {_fps:0} fps | N={InstanceCount} | steps={_fixedStep.LastStepCount} | clamp={_clampFrames}";
         }
     }
 
-    private void DrawSprites()
+    private void DrawSprites(GameTime gameTime)
     {
         Vector2 center = _camera.Position;
+        Vector2 origin = new Vector2(_testTexture.Width / 2f, _testTexture.Height / 2f);
 
         _spriteBatch.Begin(SpriteSortMode.Deferred, SamplerState.PointClamp);
-        _spriteBatch.Draw(_testTexture, center + new Vector2(-200f, 0f), null, Color.White, 0f, new Vector2(32f, 32f), new Vector2(4f, 4f), SpriteEffects.None, 0f);
-        _spriteBatch.Draw(_testTexture, center, null, Color.White, 0.7853982f, new Vector2(32f, 32f), new Vector2(4f, 4f), SpriteEffects.None, 0f);
-        _spriteBatch.Draw(_testTexture, center + new Vector2(200f, 0f), null, Color.White, 0f, new Vector2(32f, 32f), new Vector2(4f, 4f), SpriteEffects.FlipHorizontally, 0f);
+        _spriteBatch.Draw(_testTexture, center + new Vector2(-200f, 0f), null, Color.White, 0f, origin, new Vector2(4f, 4f), SpriteEffects.None, 0f);
+        _spriteBatch.Draw(_testTexture, center, null, Color.White, 0.7853982f, origin, new Vector2(4f, 4f), SpriteEffects.None, 0f);
+        _spriteBatch.Draw(_testTexture, center + new Vector2(200f, 0f), null, Color.White, 0f, origin, new Vector2(4f, 4f), SpriteEffects.FlipHorizontally, 0f);
         _spriteBatch.Draw(_pixelTexture, new Rectangle((int)center.X - 60, (int)center.Y - 160, 120, 120), new Color(220, 40, 40, 128));
+        _spriteBatch.DrawString(_font, "Гойда", center + new Vector2(-240f, 150f), Color.White, 0.35f, Vector2.Zero, new Vector2(0.6f, 0.6f), SpriteEffects.None, 0f);
+        DrawHud(gameTime);
         _spriteBatch.End();
+    }
+
+    private void DrawHud(GameTime gameTime)
+    {
+        Viewport viewport = _graphicsDevice.Viewport;
+        float halfWidth = viewport.Width * 0.5f / _camera.Zoom;
+        float halfHeight = viewport.Height * 0.5f / _camera.Zoom;
+
+        float lineHeight = _font.LineHeight;
+
+        Vector2 position = new Vector2(
+            _camera.Position.X - halfWidth + 12f,
+            _camera.Position.Y - halfHeight + 12f + lineHeight);
+
+        _spriteBatch.DrawString(_font, "2D Engine — Vulkan", position, Color.White);
+        position.Y += lineHeight;
+        _spriteBatch.DrawString(
+            _font,
+            $"{_fps:0} fps  N={InstanceCount}  steps={_fixedStep.LastStepCount}  clamp={_clampFrames}  t={gameTime.TotalGameTime.TotalSeconds:0.0}s",
+            position,
+            new Color(200, 220, 255, 255));
+        position.Y += lineHeight;
+        _spriteBatch.DrawString(_font, "AVATAR Гойда 0123", position, new Color(255, 210, 120, 255));
+    }
+
+    private void RunContentSelfTest()
+    {
+        bool fontCached = ReferenceEquals(_font, _content.Load<SpriteFont>("Font"));
+        bool textureCached = ReferenceEquals(_testTexture, _content.Load<Texture2D>("UICollider"));
+
+        string missingType = "-";
+        string missingMessage = "-";
+        try
+        {
+            _content.Load<Texture2D>("__definitely_missing__");
+        }
+        catch (Exception ex)
+        {
+            missingType = ex.GetType().Name;
+            missingMessage = ex.Message;
+        }
+
+        Vector2 measured = _font.MeasureString("AVATAR Гойда");
+        double kernAV = _font.GetKerning('A', 'V');
+        double kernGo = _font.GetKerning('Г', 'о');
+
+        bool pass = fontCached && textureCached
+            && missingType == "FileNotFoundException"
+            && measured.X > 0f && measured.Y > 0f;
+        Console.WriteLine(
+            $"[content selftest] fontCached={fontCached} textureCached={textureCached} " +
+            $"missing={missingType} measure={measured.X:0.0}x{measured.Y:0.0} kern(A,V)={kernAV:0.00} kern(Г,о)={kernGo:0.00} " +
+            $"-> {(pass ? "PASS" : "FAIL")}");
+        Console.WriteLine($"[content selftest] missing message: {missingMessage}");
     }
 
     private static void RunInputSelfTest()
@@ -206,38 +287,6 @@ public sealed class Application
         InputHelper.Clear();
     }
 
-    private static SixLabors.ImageSharp.Image<Rgba32> CreateTestImage()
-    {
-        const int size = 64;
-        var image = new SixLabors.ImageSharp.Image<Rgba32>(size, size);
-
-        var red = new Rgba32(220, 40, 40, 255);
-        var green = new Rgba32(40, 200, 60, 255);
-        var blue = new Rgba32(40, 80, 220, 255);
-        var yellow = new Rgba32(230, 210, 40, 255);
-        var black = new Rgba32(0, 0, 0, 255);
-
-        for (int y = 0; y < size; y++)
-        {
-            for (int x = 0; x < size; x++)
-            {
-                image[x, y] = y < size / 2
-                    ? (x < size / 2 ? red : green)
-                    : (x < size / 2 ? blue : yellow);
-            }
-        }
-
-        for (int y = 2; y < 12; y++)
-        {
-            for (int x = 2; x < 12; x++)
-            {
-                image[x, y] = black;
-            }
-        }
-
-        return image;
-    }
-
     private void OnClosing()
     {
         if (_disposed)
@@ -249,8 +298,8 @@ public sealed class Application
         Console.WriteLine($"rendered {_frameCount} frames, {_fps:0} fps, {InstanceCount} instances");
 
         _context?.Vk.DeviceWaitIdle(_context.Device);
-        _testTexture?.Dispose();
         _pixelTexture?.Dispose();
+        _content?.Dispose();
         _spriteBatch?.Dispose();
         _input?.Dispose();
         _renderer?.Dispose();

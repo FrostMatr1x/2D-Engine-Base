@@ -1,0 +1,11 @@
+{
+  "ttf": "Roboto-Regular.ttf",
+  "size": 40,
+  "spacing": 0,
+  "characters": [
+    { "from": 32, "to": 126 },
+    { "from": 1025, "to": 1025 },
+    { "from": 1040, "to": 1103 },
+    { "from": 1105, "to": 1105 }
+  ]
+}

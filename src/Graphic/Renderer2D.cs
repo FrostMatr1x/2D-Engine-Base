@@ -31,6 +31,8 @@ public sealed unsafe class Renderer2D : IDisposable
     private readonly string _capturePath;
     private bool _captureDone;
 
+    public Color ClearColor = new Color(13, 15, 23, 255);
+
     public Renderer2D(VulkanContext context, EngineWindow window, int maxInstances, int framesInFlight = 2)
     {
         _context = context;
@@ -99,6 +101,12 @@ public sealed unsafe class Renderer2D : IDisposable
     }
 
     public VulkanDescriptors Descriptors => _descriptors;
+
+    public int FramesInFlight => _framesInFlight;
+
+    public int BackbufferWidth => (int)_swapchain.Extent.Width;
+
+    public int BackbufferHeight => (int)_swapchain.Extent.Height;
 
     public void DrawFrame(Camera2D camera, ReadOnlySpan<Instance2D> instances, SpriteBatch sprites = null)
     {
@@ -199,7 +207,11 @@ public sealed unsafe class Renderer2D : IDisposable
         };
         _context.Vk.BeginCommandBuffer(commandBuffer, in beginInfo);
 
-        ClearValue clearValue = _renderPass.ClearColor;
+        ClearValue clearValue = new ClearValue(new ClearColorValue(
+            ClearColor.R / 255f,
+            ClearColor.G / 255f,
+            ClearColor.B / 255f,
+            ClearColor.A / 255f));
         var renderPassBegin = new RenderPassBeginInfo
         {
             SType = StructureType.RenderPassBeginInfo,
@@ -215,7 +227,7 @@ public sealed unsafe class Renderer2D : IDisposable
         };
         _context.Vk.CmdBeginRenderPass(commandBuffer, in renderPassBegin, SubpassContents.Inline);
 
-        var viewport = new Viewport
+        var viewport = new Silk.NET.Vulkan.Viewport
         {
             X = 0f,
             Y = 0f,
