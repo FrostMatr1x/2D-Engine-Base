@@ -98,7 +98,7 @@ public sealed unsafe class VulkanSwapchain : IDisposable
                 ImageColorSpace = colorSpace,
                 ImageExtent = extent,
                 ImageArrayLayers = 1,
-                ImageUsage = ImageUsageFlags.ColorAttachmentBit,
+                ImageUsage = ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.TransferSrcBit,
                 ImageSharingMode = singleFamily ? SharingMode.Exclusive : SharingMode.Concurrent,
                 QueueFamilyIndexCount = singleFamily ? 0u : 2u,
                 PQueueFamilyIndices = singleFamily ? null : pFamilyIndices,

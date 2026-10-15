@@ -15,6 +15,8 @@ public sealed unsafe class Renderer2D : IDisposable
     private readonly VulkanSwapchain _swapchain;
     private readonly VulkanRenderPass _renderPass;
     private readonly VulkanPipeline _pipeline;
+    private readonly VulkanPipeline _spritePipeline;
+    private readonly VulkanDescriptors _descriptors;
     private readonly VulkanCommandPool _commandPool;
     private readonly FrameSync[] _frames;
     private readonly VulkanBuffer _vertexBuffer;
@@ -25,6 +27,8 @@ public sealed unsafe class Renderer2D : IDisposable
     private int _currentFrame;
     private bool _framebufferResized;
     private bool _disposed;
+    private readonly string _capturePath;
+    private bool _captureDone;
 
     public Renderer2D(VulkanContext context, EngineWindow window, int maxInstances, int framesInFlight = 2)
     {
@@ -33,12 +37,18 @@ public sealed unsafe class Renderer2D : IDisposable
         _maxInstances = maxInstances;
         _framesInFlight = framesInFlight;
 
+        string capture = Environment.GetEnvironmentVariable("ENGINE_CAPTURE");
+        _capturePath = string.IsNullOrEmpty(capture) ? null : capture;
+
         _swapchain = new VulkanSwapchain();
         _swapchain.Create(context, window);
 
         _renderPass = new VulkanRenderPass();
         _renderPass.Create(context, _swapchain.Format);
         _renderPass.CreateFramebuffers(context, _swapchain);
+
+        _descriptors = new VulkanDescriptors();
+        _descriptors.Create(context);
 
         _pipeline = new VulkanPipeline();
         _pipeline.Create(
@@ -49,6 +59,17 @@ public sealed unsafe class Renderer2D : IDisposable
             CreateVertexBindings(),
             CreateVertexAttributes(),
             (uint)sizeof(PushConstants));
+
+        _spritePipeline = new VulkanPipeline();
+        _spritePipeline.Create(
+            context,
+            _renderPass.Handle,
+            ShaderPath("sprite.vert.spv"),
+            ShaderPath("sprite.frag.spv"),
+            CreateSpriteVertexBindings(),
+            CreateSpriteVertexAttributes(),
+            (uint)sizeof(PushConstants),
+            _descriptors.SetLayouts);
 
         _commandPool = new VulkanCommandPool();
         _commandPool.Create(context, context.QueueFamilyIndices.GraphicsFamily!.Value, framesInFlight);
@@ -76,7 +97,9 @@ public sealed unsafe class Renderer2D : IDisposable
         _framebufferResized = true;
     }
 
-    public void DrawFrame(Camera2D camera, ReadOnlySpan<Instance2D> instances)
+    public VulkanDescriptors Descriptors => _descriptors;
+
+    public void DrawFrame(Camera2D camera, ReadOnlySpan<Instance2D> instances, SpriteBatch sprites = null)
     {
         if (_framebufferResized && !RecreateSwapchain())
         {
@@ -111,7 +134,8 @@ public sealed unsafe class Renderer2D : IDisposable
 
         CommandBuffer commandBuffer = _commandPool.Buffers[_currentFrame];
         _context.Vk.ResetCommandBuffer(commandBuffer, 0);
-        Record(commandBuffer, imageIndex, (uint)count, camera);
+        sprites?.Prepare(_currentFrame);
+        Record(commandBuffer, imageIndex, (uint)count, camera, sprites);
 
         PipelineStageFlags waitStage = PipelineStageFlags.ColorAttachmentOutputBit;
         Semaphore signal = _renderFinished[imageIndex];
@@ -133,6 +157,12 @@ public sealed unsafe class Renderer2D : IDisposable
         if (submit != Result.Success)
         {
             throw new Exception($"vkQueueSubmit failed: {submit}");
+        }
+
+        if (_capturePath != null && !_captureDone)
+        {
+            _captureDone = true;
+            VulkanCapture.SaveSwapchainImage(_context, _swapchain, imageIndex, _capturePath);
         }
 
         SwapchainKHR swapchain = _swapchain.Handle;
@@ -160,7 +190,7 @@ public sealed unsafe class Renderer2D : IDisposable
         _currentFrame = (_currentFrame + 1) % _framesInFlight;
     }
 
-    private void Record(CommandBuffer commandBuffer, uint imageIndex, uint instanceCount, Camera2D camera)
+    private void Record(CommandBuffer commandBuffer, uint imageIndex, uint instanceCount, Camera2D camera, SpriteBatch sprites)
     {
         var beginInfo = new CommandBufferBeginInfo
         {
@@ -224,6 +254,30 @@ public sealed unsafe class Renderer2D : IDisposable
             _context.Vk.CmdPushConstants(commandBuffer, _pipeline.Layout, ShaderStageFlags.VertexBit, 0, (uint)sizeof(PushConstants), &pushConstants);
 
             _context.Vk.CmdDrawIndexed(commandBuffer, 6, instanceCount, 0, 0, 0);
+        }
+
+        if (sprites != null && sprites.HasPending && sprites.ActiveBuffer != null)
+        {
+            _context.Vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, _spritePipeline.Handle);
+
+            var spritePushConstants = new PushConstants
+            {
+                Projection = camera.GetViewProjection(_swapchain.Extent.Width, _swapchain.Extent.Height) * sprites.TransformMatrix
+            };
+            _context.Vk.CmdPushConstants(commandBuffer, _spritePipeline.Layout, ShaderStageFlags.VertexBit, 0, (uint)sizeof(PushConstants), &spritePushConstants);
+
+            Silk.NET.Vulkan.Buffer spriteVertexBuffer = sprites.ActiveBuffer.Handle;
+            ulong spriteOffset = 0;
+            _context.Vk.CmdBindVertexBuffers(commandBuffer, 0, 1, &spriteVertexBuffer, &spriteOffset);
+
+            DescriptorSet* descriptorSets = stackalloc DescriptorSet[2];
+            foreach (SpriteSubBatch subBatch in sprites.SubBatches)
+            {
+                descriptorSets[0] = subBatch.Sampler.Set;
+                descriptorSets[1] = subBatch.Texture.DescriptorSet;
+                _context.Vk.CmdBindDescriptorSets(commandBuffer, PipelineBindPoint.Graphics, _spritePipeline.Layout, 0, 2, descriptorSets, 0, null);
+                _context.Vk.CmdDraw(commandBuffer, subBatch.VertexCount, 1, subBatch.FirstVertex, 0);
+            }
         }
 
         _context.Vk.CmdEndRenderPass(commandBuffer);
@@ -321,6 +375,29 @@ public sealed unsafe class Renderer2D : IDisposable
         };
     }
 
+    private static VertexInputBindingDescription[] CreateSpriteVertexBindings()
+    {
+        return new[]
+        {
+            new VertexInputBindingDescription
+            {
+                Binding = 0,
+                Stride = (uint)sizeof(SpriteVertex),
+                InputRate = VertexInputRate.Vertex
+            }
+        };
+    }
+
+    private static VertexInputAttributeDescription[] CreateSpriteVertexAttributes()
+    {
+        return new[]
+        {
+            new VertexInputAttributeDescription { Location = 0, Binding = 0, Format = Format.R32G32Sfloat, Offset = 0 },
+            new VertexInputAttributeDescription { Location = 1, Binding = 0, Format = Format.R32G32Sfloat, Offset = 8 },
+            new VertexInputAttributeDescription { Location = 2, Binding = 0, Format = Format.R8G8B8A8Unorm, Offset = 16 }
+        };
+    }
+
     private static string ShaderPath(string fileName)
     {
         string relative = Path.Combine("Content", "Shaders", fileName);
@@ -349,6 +426,8 @@ public sealed unsafe class Renderer2D : IDisposable
         _commandPool.Dispose();
         _renderPass.Dispose();
         _pipeline.Dispose();
+        _spritePipeline.Dispose();
+        _descriptors.Dispose();
         _vertexBuffer.Dispose();
         _indexBuffer.Dispose();
         _instanceBuffers.Dispose();

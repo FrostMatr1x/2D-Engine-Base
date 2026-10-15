@@ -20,7 +20,8 @@ public sealed unsafe class VulkanPipeline : IDisposable
         string fragmentShaderPath,
         VertexInputBindingDescription[] bindings,
         VertexInputAttributeDescription[] attributes,
-        uint pushConstantSize)
+        uint pushConstantSize,
+        DescriptorSetLayout[] setLayouts = null)
     {
         _vk = context.Vk;
         _device = context.Device;
@@ -131,20 +132,25 @@ public sealed unsafe class VulkanPipeline : IDisposable
                     Size = pushConstantSize
                 };
 
-                var layoutInfo = new PipelineLayoutCreateInfo
+                DescriptorSetLayout[] layouts = setLayouts ?? Array.Empty<DescriptorSetLayout>();
+                fixed (DescriptorSetLayout* pSetLayouts = layouts)
                 {
-                    SType = StructureType.PipelineLayoutCreateInfo,
-                    SetLayoutCount = 0,
-                    PushConstantRangeCount = pushConstantSize > 0 ? 1u : 0u,
-                    PPushConstantRanges = pushConstantSize > 0 ? &pushConstantRange : null
-                };
+                    var layoutInfo = new PipelineLayoutCreateInfo
+                    {
+                        SType = StructureType.PipelineLayoutCreateInfo,
+                        SetLayoutCount = (uint)layouts.Length,
+                        PSetLayouts = layouts.Length > 0 ? pSetLayouts : null,
+                        PushConstantRangeCount = pushConstantSize > 0 ? 1u : 0u,
+                        PPushConstantRanges = pushConstantSize > 0 ? &pushConstantRange : null
+                    };
 
-                Result layoutResult = _vk.CreatePipelineLayout(_device, in layoutInfo, null, out PipelineLayout layout);
-                if (layoutResult != Result.Success)
-                {
-                    throw new Exception($"vkCreatePipelineLayout failed: {layoutResult}");
+                    Result layoutResult = _vk.CreatePipelineLayout(_device, in layoutInfo, null, out PipelineLayout layout);
+                    if (layoutResult != Result.Success)
+                    {
+                        throw new Exception($"vkCreatePipelineLayout failed: {layoutResult}");
+                    }
+                    Layout = layout;
                 }
-                Layout = layout;
 
                 var createInfo = new GraphicsPipelineCreateInfo
                 {

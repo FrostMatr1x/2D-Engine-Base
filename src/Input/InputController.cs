@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Engine.Graphic;
 using Silk.NET.Input;
+using SilkMouseButton = Silk.NET.Input.MouseButton;
 
 namespace Engine.Input;
 
@@ -11,6 +12,7 @@ public sealed class InputController : IDisposable
     private readonly Camera2D _camera;
     private readonly IInputContext _input;
     private readonly IMouse _mouse;
+    private readonly IKeyboard _keyboard;
     private Vector2 _lastMouse;
     private bool _panning;
 
@@ -20,17 +22,21 @@ public sealed class InputController : IDisposable
         _camera = camera;
         _input = window.Window.CreateInput();
         _mouse = _input.Mice.Count > 0 ? _input.Mice[0] : null;
+        _keyboard = _input.Keyboards.Count > 0 ? _input.Keyboards[0] : null;
+        InputHelper.Bind(_keyboard, _mouse);
     }
 
     public void Update()
     {
+        InputHelper.Update();
+
         if (_mouse == null)
         {
             return;
         }
 
         Vector2 position = _mouse.Position;
-        bool dragging = _mouse.IsButtonPressed(MouseButton.Right) || _mouse.IsButtonPressed(MouseButton.Middle);
+        bool dragging = _mouse.IsButtonPressed(SilkMouseButton.Right) || _mouse.IsButtonPressed(SilkMouseButton.Middle);
 
         if (dragging)
         {

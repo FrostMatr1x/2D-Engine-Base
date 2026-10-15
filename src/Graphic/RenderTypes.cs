@@ -41,3 +41,18 @@ public struct PushConstants
 {
     public Mat4 Projection;
 }
+
+[StructLayout(LayoutKind.Sequential)]
+public struct SpriteVertex
+{
+    public Vector2 Position;
+    public Vector2 UV;
+    public uint Color;
+
+    public SpriteVertex(Vector2 position, Vector2 uv, uint color)
+    {
+        Position = position;
+        UV = uv;
+        Color = color;
+    }
+}
