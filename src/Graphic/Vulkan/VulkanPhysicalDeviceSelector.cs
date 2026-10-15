@@ -105,7 +105,7 @@ public class VulkanPhysicalDeviceSelector
     {
         result = default;
 
-        var queueFamilyIndices = FindQueueFamilies(device);
+        var queueFamilyIndices = FindQueueFamilies(device, requestedParameters.RequiredQueueFlags);
         if (!queueFamilyIndices.IsComplete)
         {
             return false;
@@ -147,7 +147,7 @@ public class VulkanPhysicalDeviceSelector
     /// <summary>
     /// Проверка устройства на умение present на surface.
     /// </summary>
-    private unsafe QueueFamilyIndices FindQueueFamilies(PhysicalDevice device)
+    private unsafe QueueFamilyIndices FindQueueFamilies(PhysicalDevice device, QueueFlags requiredQueueFlags)
     {
         var indices = new QueueFamilyIndices();
 
@@ -162,7 +162,7 @@ public class VulkanPhysicalDeviceSelector
 
         for (uint i = 0; i < queueFamilyCount; i++)
         {
-            if (queueFamilies[i].QueueFlags.HasFlag(QueueFlags.GraphicsBit))
+            if ((queueFamilies[i].QueueFlags & requiredQueueFlags) == requiredQueueFlags)
             {
                 indices.GraphicsFamily = i;
             }

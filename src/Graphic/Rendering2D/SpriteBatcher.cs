@@ -38,9 +38,19 @@ public struct SpriteSubBatch
 
 public static class SpriteBatcher
 {
-    public static SpriteVertex[] Build(SpriteSortMode sortMode, List<SpriteDrawCall> draws, out List<SpriteSubBatch> subBatches)
+    public static void Build(
+        SpriteSortMode sortMode,
+        List<SpriteDrawCall> draws,
+        List<SpriteVertex> vertices,
+        List<SpriteSubBatch> subBatches)
     {
-        subBatches = new List<SpriteSubBatch>();
+        vertices.Clear();
+        subBatches.Clear();
+
+        if (sortMode == SpriteSortMode.Immediate || sortMode == SpriteSortMode.Texture)
+        {
+            throw new NotSupportedException($"SpriteSortMode.{sortMode} is not implemented.");
+        }
 
         IEnumerable<SpriteDrawCall> ordered = sortMode == SpriteSortMode.BackToFront
             ? draws.OrderByDescending(draw => draw.LayerDepth)
@@ -48,7 +58,6 @@ public static class SpriteBatcher
                 ? draws.OrderBy(draw => draw.LayerDepth)
                 : draws;
 
-        var vertices = new List<SpriteVertex>(draws.Count * 6);
         Texture2D currentTexture = null;
         SamplerState currentSampler = null;
         uint batchStart = 0;
@@ -91,8 +100,6 @@ public static class SpriteBatcher
                 VertexCount = (uint)vertices.Count - batchStart
             });
         }
-
-        return vertices.ToArray();
     }
 
     private static void AppendQuad(List<SpriteVertex> vertices, SpriteDrawCall draw)
@@ -124,7 +131,7 @@ public static class SpriteBatcher
         Span<float> uvs = stackalloc float[4] { u0, u1, u1, u0 };
         Span<float> uvV = stackalloc float[4] { v0, v0, v1, v1 };
 
-        var quad = new SpriteVertex[4];
+        Span<SpriteVertex> quad = stackalloc SpriteVertex[4];
         for (int i = 0; i < 4; i++)
         {
             float offsetX = (localX[i] - draw.Origin.X) * draw.Scale.X;

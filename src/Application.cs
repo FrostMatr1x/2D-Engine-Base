@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Globalization;
 using System.Numerics;
 using Engine.Graphic;
 using Engine.Graphic.Vulkan;
@@ -37,7 +38,11 @@ public sealed class Application
     public Application(EngineWindow window)
     {
         _window = window;
-        _exitAfter = double.TryParse(Environment.GetEnvironmentVariable("ENGINE_EXIT_AFTER"), out double exitAfterSeconds)
+        _exitAfter = double.TryParse(
+            Environment.GetEnvironmentVariable("ENGINE_EXIT_AFTER"),
+            NumberStyles.Float,
+            CultureInfo.InvariantCulture,
+            out double exitAfterSeconds)
             ? exitAfterSeconds
             : 0.0;
     }

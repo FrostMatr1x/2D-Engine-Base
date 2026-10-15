@@ -85,6 +85,12 @@ public sealed unsafe class VulkanSwapchain : IDisposable
         bool singleFamily = graphicsFamily == presentFamily;
         uint[] familyIndices = { graphicsFamily, presentFamily };
 
+        ImageUsageFlags imageUsage = ImageUsageFlags.ColorAttachmentBit;
+        if (capabilities.SupportedUsageFlags.HasFlag(ImageUsageFlags.TransferSrcBit))
+        {
+            imageUsage |= ImageUsageFlags.TransferSrcBit;
+        }
+
         Result result;
         SwapchainKHR swapchain;
         fixed (uint* pFamilyIndices = familyIndices)
@@ -98,7 +104,7 @@ public sealed unsafe class VulkanSwapchain : IDisposable
                 ImageColorSpace = colorSpace,
                 ImageExtent = extent,
                 ImageArrayLayers = 1,
-                ImageUsage = ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.TransferSrcBit,
+                ImageUsage = imageUsage,
                 ImageSharingMode = singleFamily ? SharingMode.Exclusive : SharingMode.Concurrent,
                 QueueFamilyIndexCount = singleFamily ? 0u : 2u,
                 PQueueFamilyIndices = singleFamily ? null : pFamilyIndices,

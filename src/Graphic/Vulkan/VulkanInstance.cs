@@ -47,6 +47,13 @@ public sealed unsafe class VulkanInstance : IDisposable
             fixed (byte** ppExtensions = extensionPointers)
             fixed (byte** ppLayers = layerPointers)
             {
+                uint apiVersion = Vk.Version11;
+                uint loaderVersion = 0;
+                if (_vk.EnumerateInstanceVersion(ref loaderVersion) == Result.Success && loaderVersion != 0)
+                {
+                    apiVersion = Math.Min(loaderVersion, Vk.Version13);
+                }
+
                 var applicationInfo = new ApplicationInfo
                 {
                     SType = StructureType.ApplicationInfo,
@@ -54,7 +61,7 @@ public sealed unsafe class VulkanInstance : IDisposable
                     ApplicationVersion = 1,
                     PEngineName = engineName,
                     EngineVersion = 1,
-                    ApiVersion = Vk.Version13
+                    ApiVersion = apiVersion
                 };
 
                 var createInfo = new InstanceCreateInfo

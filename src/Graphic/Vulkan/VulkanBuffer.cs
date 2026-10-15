@@ -43,9 +43,8 @@ public sealed unsafe class VulkanBuffer : IDisposable
         Handle = buffer;
 
         _vk.GetBufferMemoryRequirements(_device, Handle, out MemoryRequirements requirements);
-        _vk.GetPhysicalDeviceMemoryProperties(context.PhysicalDevice, out PhysicalDeviceMemoryProperties memoryProperties);
 
-        uint memoryTypeIndex = FindMemoryType(memoryProperties, requirements.MemoryTypeBits, properties);
+        uint memoryTypeIndex = VulkanMemory.FindMemoryType(context, requirements.MemoryTypeBits, properties);
 
         var allocateInfo = new MemoryAllocateInfo
         {
@@ -85,18 +84,6 @@ public sealed unsafe class VulkanBuffer : IDisposable
         {
             System.Buffer.MemoryCopy(source, Mapped, Size, (ulong)(data.Length * sizeof(T)));
         }
-    }
-
-    private static uint FindMemoryType(PhysicalDeviceMemoryProperties memoryProperties, uint typeFilter, MemoryPropertyFlags properties)
-    {
-        for (uint i = 0; i < memoryProperties.MemoryTypeCount; i++)
-        {
-            if ((typeFilter & (1u << (int)i)) != 0 && memoryProperties.MemoryTypes[(int)i].PropertyFlags.HasFlag(properties))
-            {
-                return i;
-            }
-        }
-        throw new Exception("Не найден подходящий тип памяти GPU.");
     }
 
     public void Dispose()

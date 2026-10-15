@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using Engine.Graphic.Vulkan;
 using Silk.NET.Vulkan;
 
@@ -367,13 +368,15 @@ public sealed unsafe class Renderer2D : IDisposable
     {
         return new[]
         {
-            new VertexInputAttributeDescription { Location = 0, Binding = 0, Format = Format.R32G32Sfloat, Offset = 0 },
-            new VertexInputAttributeDescription { Location = 1, Binding = 1, Format = Format.R32G32Sfloat, Offset = 0 },
-            new VertexInputAttributeDescription { Location = 2, Binding = 1, Format = Format.R32G32Sfloat, Offset = 8 },
-            new VertexInputAttributeDescription { Location = 3, Binding = 1, Format = Format.R32Sfloat, Offset = 16 },
-            new VertexInputAttributeDescription { Location = 4, Binding = 1, Format = Format.R32Uint, Offset = 20 }
+            new VertexInputAttributeDescription { Location = 0, Binding = 0, Format = Format.R32G32Sfloat, Offset = OffsetOf<Vertex2D>(nameof(Vertex2D.Position)) },
+            new VertexInputAttributeDescription { Location = 1, Binding = 1, Format = Format.R32G32Sfloat, Offset = OffsetOf<Instance2D>(nameof(Instance2D.Position)) },
+            new VertexInputAttributeDescription { Location = 2, Binding = 1, Format = Format.R32G32Sfloat, Offset = OffsetOf<Instance2D>(nameof(Instance2D.Scale)) },
+            new VertexInputAttributeDescription { Location = 3, Binding = 1, Format = Format.R32Sfloat, Offset = OffsetOf<Instance2D>(nameof(Instance2D.Rotation)) },
+            new VertexInputAttributeDescription { Location = 4, Binding = 1, Format = Format.R32Uint, Offset = OffsetOf<Instance2D>(nameof(Instance2D.Color)) }
         };
     }
+
+    private static uint OffsetOf<T>(string field) => (uint)Marshal.OffsetOf<T>(field).ToInt64();
 
     private static VertexInputBindingDescription[] CreateSpriteVertexBindings()
     {
@@ -392,9 +395,9 @@ public sealed unsafe class Renderer2D : IDisposable
     {
         return new[]
         {
-            new VertexInputAttributeDescription { Location = 0, Binding = 0, Format = Format.R32G32Sfloat, Offset = 0 },
-            new VertexInputAttributeDescription { Location = 1, Binding = 0, Format = Format.R32G32Sfloat, Offset = 8 },
-            new VertexInputAttributeDescription { Location = 2, Binding = 0, Format = Format.R8G8B8A8Unorm, Offset = 16 }
+            new VertexInputAttributeDescription { Location = 0, Binding = 0, Format = Format.R32G32Sfloat, Offset = OffsetOf<SpriteVertex>(nameof(SpriteVertex.Position)) },
+            new VertexInputAttributeDescription { Location = 1, Binding = 0, Format = Format.R32G32Sfloat, Offset = OffsetOf<SpriteVertex>(nameof(SpriteVertex.UV)) },
+            new VertexInputAttributeDescription { Location = 2, Binding = 0, Format = Format.R8G8B8A8Unorm, Offset = OffsetOf<SpriteVertex>(nameof(SpriteVertex.Color)) }
         };
     }
 

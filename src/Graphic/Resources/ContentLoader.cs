@@ -7,27 +7,56 @@ namespace Engine.Graphic;
 
 public class ContentLoader
 {
-    #warning make it possible custom path
+    private readonly string _root;
+
+    public ContentLoader(string contentRoot = "Content")
+    {
+        _root = Path.GetFullPath(contentRoot);
+    }
+
+    public string ContentRoot => _root;
+
+    public string ResolvePath(string source)
+    {
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            throw new ArgumentException("Source path must not be empty.", nameof(source));
+        }
+
+        string candidate = Path.IsPathRooted(source) ? source : Path.Combine(_root, source);
+        string full = Path.GetFullPath(candidate);
+
+        string rootPrefix = _root.EndsWith(Path.DirectorySeparatorChar)
+            ? _root
+            : _root + Path.DirectorySeparatorChar;
+
+        if (!full.StartsWith(rootPrefix, StringComparison.Ordinal))
+        {
+            throw new UnauthorizedAccessException($"Path '{source}' resolves outside the content root '{_root}'.");
+        }
+
+        return full;
+    }
+
     /// <summary>
-    /// 
+    /// Loads an image by a path relative to the content root.
     /// </summary>
-    /// <param name="source">Source in content folder</param>
+    /// <param name="source">Source relative to the content folder.</param>
     public Image<Rgba32> LoadImage(string source)
     {
-        if (!File.Exists(source))
+        string path = ResolvePath(source);
+        if (!File.Exists(path))
         {
-            #warning Use debug.error!
             Console.WriteLine("Файл не существует.");
             return null;
         }
 
         try
         {
-            return Image.Load<Rgba32>(source);
+            return Image.Load<Rgba32>(path);
         }
         catch (Exception ex)
         {
-            #warning Use debug.error!
             Console.WriteLine($"Ошибка при загрузке изображения: {ex.Message}");
             return null;
         }
@@ -40,7 +69,6 @@ public class ContentLoader
         {
             return new Texture2D(image);
         }
-        #warning Use debug.error!
         return null;
     }
 }

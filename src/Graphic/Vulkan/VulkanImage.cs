@@ -49,7 +49,7 @@ public sealed unsafe class VulkanImage : IDisposable
         {
             SType = StructureType.MemoryAllocateInfo,
             AllocationSize = requirements.Size,
-            MemoryTypeIndex = FindMemoryType(context, requirements.MemoryTypeBits, MemoryPropertyFlags.DeviceLocalBit)
+            MemoryTypeIndex = VulkanMemory.FindMemoryType(context, requirements.MemoryTypeBits, MemoryPropertyFlags.DeviceLocalBit)
         };
 
         Result memoryResult = _vk.AllocateMemory(_device, in allocateInfo, null, out DeviceMemory memory);
@@ -140,20 +140,6 @@ public sealed unsafe class VulkanImage : IDisposable
         };
 
         _vk.CmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0, null, 0, null, 1, &barrier);
-    }
-
-    private static uint FindMemoryType(VulkanContext context, uint typeFilter, MemoryPropertyFlags properties)
-    {
-        context.Vk.GetPhysicalDeviceMemoryProperties(context.PhysicalDevice, out PhysicalDeviceMemoryProperties memoryProperties);
-
-        for (uint i = 0; i < memoryProperties.MemoryTypeCount; i++)
-        {
-            if ((typeFilter & (1u << (int)i)) != 0 && memoryProperties.MemoryTypes[(int)i].PropertyFlags.HasFlag(properties))
-            {
-                return i;
-            }
-        }
-        throw new Exception("Не найден подходящий тип памяти GPU для изображения.");
     }
 
     public void Dispose()
